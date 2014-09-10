@@ -42,6 +42,7 @@ public class Configuration {
 	private List<Class<? extends Model>> mModelClasses;
 	private List<Class<? extends TypeSerializer>> mTypeSerializers;
 	private int mCacheSize;
+    private Boolean mCacheEntities = true;
 
 	//////////////////////////////////////////////////////////////////////////////////////
 	// CONSTRUCTORS
@@ -83,6 +84,10 @@ public class Configuration {
 		return mCacheSize;
 	}
 
+    public boolean isEntityCacheEnabled() {
+        return mCacheEntities;
+    }
+
 	public boolean isValid() {
 		return mModelClasses != null && mModelClasses.size() > 0;
 	}
@@ -113,6 +118,7 @@ public class Configuration {
 		private Context mContext;
 
 		private Integer mCacheSize;
+        private Boolean mCacheEntities;
 		private String mDatabaseName;
 		private Integer mDatabaseVersion;
 		private String mSqlParser;
@@ -126,6 +132,7 @@ public class Configuration {
 		public Builder(Context context) {
 			mContext = context.getApplicationContext();
 			mCacheSize = DEFAULT_CACHE_SIZE;
+            mCacheEntities = Boolean.TRUE;
 		}
 
 		//////////////////////////////////////////////////////////////////////////////////////
@@ -136,6 +143,11 @@ public class Configuration {
 			mCacheSize = cacheSize;
 			return this;
 		}
+
+        public Builder setCacheEntities(boolean entityCachingEnabled) {
+            mCacheEntities = entityCachingEnabled;
+            return this;
+        }
 
 		public Builder setDatabaseName(String databaseName) {
 			mDatabaseName = databaseName;
@@ -201,6 +213,7 @@ public class Configuration {
 		public Configuration create() {
 			Configuration configuration = new Configuration(mContext);
 			configuration.mCacheSize = mCacheSize;
+            configuration.mCacheEntities = mCacheEntities;
 
 			// Get database name from meta-data
 			if (mDatabaseName != null) {

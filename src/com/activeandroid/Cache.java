@@ -45,6 +45,8 @@ public final class Cache {
 
 	private static boolean sIsInitialized = false;
 
+    private static boolean sIsEntityCacheEnabled = true;
+
 	//////////////////////////////////////////////////////////////////////////////////////
 	// CONSTRUCTORS
 	//////////////////////////////////////////////////////////////////////////////////////
@@ -65,6 +67,7 @@ public final class Cache {
 		sContext = configuration.getContext();
 		sModelInfo = new ModelInfo(configuration);
 		sDatabaseHelper = new DatabaseHelper(configuration);
+        sIsEntityCacheEnabled = configuration.isEntityCacheEnabled();
 
 		// TODO: It would be nice to override sizeOf here and calculate the memory
 		// actually used, however at this point it seems like the reflection
@@ -92,6 +95,7 @@ public final class Cache {
 		sDatabaseHelper = null;
 
 		sIsInitialized = false;
+        sIsEntityCacheEnabled = true;
 
 		Log.v("ActiveAndroid disposed. Call initialize to use library.");
 	}
@@ -101,6 +105,10 @@ public final class Cache {
 	public static boolean isInitialized() {
 		return sIsInitialized;
 	}
+
+    public static boolean isEntityCacheEnabled() {
+        return sIsEntityCacheEnabled;
+    }
 
 	public static synchronized SQLiteDatabase openDatabase() {
 		return sDatabaseHelper.getWritableDatabase();
@@ -126,16 +134,16 @@ public final class Cache {
 		return getIdentifier(entity.getClass(), entity.getId());
 	}
 
-	public static synchronized void addEntity(Model entity) {
-		sEntities.put(getIdentifier(entity), entity);
+	public static void addEntity(Model entity) {
+		if (sIsEntityCacheEnabled) sEntities.put(getIdentifier(entity), entity);
 	}
 
-	public static synchronized Model getEntity(Class<? extends Model> type, long id) {
-		return sEntities.get(getIdentifier(type, id));
+	public static Model getEntity(Class<? extends Model> type, long id) {
+		return sIsEntityCacheEnabled ? sEntities.get(getIdentifier(type, id)) : null;
 	}
 
-	public static synchronized void removeEntity(Model entity) {
-		sEntities.remove(getIdentifier(entity));
+	public static void removeEntity(Model entity) {
+		if (sIsEntityCacheEnabled) sEntities.remove(getIdentifier(entity));
 	}
 
 	// Model cache
