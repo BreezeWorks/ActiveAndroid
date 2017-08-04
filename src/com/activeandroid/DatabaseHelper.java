@@ -50,6 +50,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
     //////////////////////////////////////////////////////////////////////////////////////
 
     private final String mSqlParser;
+	private final int mPreviousDBVersion;
 
 	//////////////////////////////////////////////////////////////////////////////////////
 	// CONSTRUCTORS
@@ -61,6 +62,9 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
 		mSqlParser = configuration.getSqlParser();
 	}
 
+	public int getPreviousDBVersion() {
+		return mPreviousDBVersion;
+	}
 	//////////////////////////////////////////////////////////////////////////////////////
 	// OVERRIDEN METHODS
 	//////////////////////////////////////////////////////////////////////////////////////
@@ -76,6 +80,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
 		executeCreate(db);
 		executeMigrations(db, -1, db.getVersion());
 		executeCreateIndex(db);
+		mPreviousDBVersion = -1;
 	}
 
 	@Override
@@ -83,6 +88,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
 		executePragmas(db);
 		executeCreate(db);
 		executeMigrations(db, oldVersion, newVersion);
+		mPreviousDBVersion = oldVersion;
 	}
 
 	//////////////////////////////////////////////////////////////////////////////////////
@@ -195,6 +201,9 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
 			Log.e("Failed to execute migrations.", e);
 		}
 
+		if (mPostMigrationRunnable != null) {
+			mPostMigrationRunnable.onPostMigration(oldVersion, newVersion);
+		}
 		return migrationExecuted;
 	}
 

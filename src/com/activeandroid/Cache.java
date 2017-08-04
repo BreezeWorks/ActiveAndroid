@@ -96,6 +96,10 @@ public final class Cache {
 		Log.v("ActiveAndroid disposed. Call initialize to use library.");
 	}
 
+	public static int getPreviousDBVersion() {
+		return sDatabaseHelper.getPreviousDBVersion();
+	}
+
 	// Database access
 	
 	public static boolean isInitialized() {
