@@ -50,7 +50,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
     //////////////////////////////////////////////////////////////////////////////////////
 
     private final String mSqlParser;
-	private final int mPreviousDBVersion;
+	private int mPreviousDBVersion;
 
 	//////////////////////////////////////////////////////////////////////////////////////
 	// CONSTRUCTORS
@@ -201,9 +201,6 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
 			Log.e("Failed to execute migrations.", e);
 		}
 
-		if (mPostMigrationRunnable != null) {
-			mPostMigrationRunnable.onPostMigration(oldVersion, newVersion);
-		}
 		return migrationExecuted;
 	}
 
