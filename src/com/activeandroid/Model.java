@@ -30,7 +30,9 @@ import com.activeandroid.util.ReflectionUtils;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @SuppressWarnings("unchecked")
 public abstract class Model {
@@ -176,13 +178,13 @@ public abstract class Model {
 	}
 
 	// Model population
-
 	public final void loadFromCursor(Cursor cursor) {
         /**
          * Obtain the columns ordered to fix issue #106 (https://github.com/pardom/ActiveAndroid/issues/106)
          * when the cursor have multiple columns with same name obtained from join tables.
          */
         List<String> columnsOrdered = new ArrayList<String>(Arrays.asList(cursor.getColumnNames()));
+
 		for (Field field : mTableInfo.getFields()) {
 			final String fieldName = mTableInfo.getColumnName(field);
 			Class<?> fieldType = field.getType();
@@ -195,6 +197,7 @@ public abstract class Model {
 			field.setAccessible(true);
 
 			try {
+
 				boolean columnIsNull = cursor.isNull(columnIndex);
 				TypeSerializer typeSerializer = Cache.getParserForType(fieldType);
 				Object value = null;
@@ -239,15 +242,15 @@ public abstract class Model {
 					value = cursor.getBlob(columnIndex);
 				}
 				else if (ReflectionUtils.isModel(fieldType)) {
-					final long entityId = cursor.getLong(columnIndex);
+					final Long entityId = cursor.getLong(columnIndex);
 					final Class<? extends Model> entityType = (Class<? extends Model>) fieldType;
 
-					Model entity = Cache.getEntity(entityType, entityId);
-					if (entity == null) {
-						entity = new Select().from(entityType).where(idName+"=?", entityId).executeSingle();
+					Model entity = Cache.getEntity(entityType, entityId.longValue());
+					if (entity != null) {
+						value = entity;
+					} else {
+						faultedRelationships.add(new FaultedRelationship(entityType, entityId, field));
 					}
-
-					value = entity;
 				}
 				else if (ReflectionUtils.isSubclassOf(fieldType, Enum.class)) {
 					@SuppressWarnings("rawtypes")
@@ -279,6 +282,8 @@ public abstract class Model {
 		if (mId != null) {
 			Cache.addEntity(this);
 		}
+
+
 	}
 
 	//////////////////////////////////////////////////////////////////////////////////////
@@ -317,4 +322,66 @@ public abstract class Model {
 		hash += HASH_PRIME * mTableInfo.getTableName().hashCode();
 		return hash; //To change body of generated methods, choose Tools | Templates.
 	}
+
+	//////////////////////////////////////////////////////////////////////////////////////
+	// Faulting relationships Management
+	//////////////////////////////////////////////////////////////////////////////////////
+
+	private class FaultedRelationship {
+		public Class<? extends Model> targetType;
+		public Long targetId;
+		public Field field;
+		FaultedRelationship(Class<? extends Model> targetType, Long targetId, Field field){
+			this.targetType = targetType;
+			this.targetId = targetId;
+			this.field = field;
+		}
+	}
+	private ArrayList<FaultedRelationship> faultedRelationships = new ArrayList<FaultedRelationship>();
+
+	public Set<Class<? extends Model>> getFaultedClasses(){
+		HashSet<Class<? extends Model>> deps = new HashSet<>();
+
+		for(FaultedRelationship f : faultedRelationships) {
+			deps.add(f.targetType);
+		}
+
+		return deps;
+	}
+
+	public Set<String> getFaultedIdsForClass(Class<? extends Model> clazz){
+		HashSet<String> ids = new HashSet<String>();
+
+		for(FaultedRelationship f : faultedRelationships) {
+			if(f.targetType.equals(clazz)){
+				ids.add(f.targetId.toString());
+			}
+		}
+
+		return ids;
+	}
+
+	public void associateFaultedObject(Model targetObject){
+		for (FaultedRelationship f : matchingFaultsForTarget(targetObject)) {
+			try {
+				f.field.setAccessible(true);
+				f.field.set(this, targetObject);
+			}
+			catch (IllegalAccessException e) {
+				Log.e(e.getClass().getName(), e);
+			}
+			faultedRelationships.remove(f);
+		}
+	}
+
+	private List<FaultedRelationship> matchingFaultsForTarget(Model target) {
+		ArrayList<FaultedRelationship> matching = new ArrayList<>();
+		for (FaultedRelationship f : faultedRelationships) {
+			if (target.getClass().equals(f.targetType) && target.getId().equals(f.targetId)){
+				matching.add(f);
+			}
+		}
+		return matching;
+	}
+
 }

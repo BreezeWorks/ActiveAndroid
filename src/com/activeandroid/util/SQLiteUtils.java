@@ -34,6 +34,7 @@ import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -345,6 +346,9 @@ public final class SQLiteUtils {
 					entities.add((T) entity);
 				}
 				while (cursor.moveToNext());
+
+				// now, load all dependencies of the entities
+				processDependencies(entities);
 			}
 
 		}
@@ -363,6 +367,62 @@ public final class SQLiteUtils {
 		}
 
 		return entities;
+	}
+
+	private static void processDependencies(List<? extends Model> entities){
+
+		//get a set of all the dependent classes
+		HashSet<Class<? extends Model>> dependentClasses = new HashSet<Class<? extends Model>>();
+		for (Model entity : entities) {
+			dependentClasses.addAll(entity.getFaultedClasses());
+		}
+
+		//load each class one at time
+		for (Class<? extends Model> dependencyClass : dependentClasses) {
+			loadDependencies(dependencyClass, entities);
+		}
+
+	}
+
+	private static void loadDependencies(Class<? extends Model> dependencyClass, List<? extends Model> entities) {
+
+		// get all the ids
+		HashSet<String> faultedIds = new HashSet<>();
+		for (Model entity : entities) {
+			faultedIds.addAll(entity.getFaultedIdsForClass(dependencyClass));
+		}
+
+		//execute the IN query
+		List<? extends Model> relatedEntities = inQuery(dependencyClass, faultedIds.toArray(new String[faultedIds.size()]));
+
+		//build a hash
+		HashMap<Long, Model> relatedEntityHash = new HashMap<>();
+		for (Model relatedEntity : relatedEntities ) {
+			relatedEntityHash.put(relatedEntity.getId(), relatedEntity);
+		}
+
+		//Now, map dependencies to the entities
+		for (Model entity : entities) {
+			for(String faultedId : entity.getFaultedIdsForClass(dependencyClass)) {
+				Model matchingRelatedObject = relatedEntityHash.get(new Long(faultedId));
+				if (matchingRelatedObject != null) {
+					entity.associateFaultedObject(matchingRelatedObject);
+				}
+			}
+		}
+
+	}
+
+	private static <T extends Model> List<T> inQuery(Class<? extends Model> clazz, String[] ids) {
+		Character[] placeholdersArray = new Character[ids.length];
+		for (int i = 0; i < ids.length; i++) {
+			placeholdersArray[i] = '?';
+		}
+		String placeholders = TextUtils.join(",", placeholdersArray);
+		String whereClause = " where " + Cache.getTableInfo(clazz).getIdName()+" IN ("+placeholders+")";
+		String fromClause = "Select * from " + Cache.getTableName(clazz);
+
+		return rawQuery(clazz, fromClause + whereClause, ids);
 	}
 
 	private static int processIntCursor(final Cursor cursor) {
